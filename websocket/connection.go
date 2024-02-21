@@ -97,7 +97,7 @@ func (w *wsc) Terminate(reason error) {
 	w.conn.Close()
 }
 
-func (w *wsc) HandleInspect(from gen.PID) map[string]string {
+func (w *wsc) HandleInspect(from gen.PID, item ...string) map[string]string {
 	return map[string]string{
 		"local":  w.conn.LocalAddr().String(),
 		"remote": w.conn.RemoteAddr().String(),
