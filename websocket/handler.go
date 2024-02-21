@@ -68,7 +68,7 @@ func (w *wsh) Terminate(reason error) {
 	close(w.ch)
 }
 
-func (w *wsh) HandleInspect(from gen.PID) map[string]string {
+func (w *wsh) HandleInspect(from gen.PID, item ...string) map[string]string {
 	return nil
 }
 
