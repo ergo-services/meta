@@ -422,7 +422,7 @@ func TestT1(t *testing.T) {
 	nopt := gen.NodeOptions{}
 	nopt.Log.DefaultLogger.Disable = true
 	//nopt.Log.Level = gen.LogLevelTrace
-	node, err := node.Start("t1WebSocketnode@localhost", gen.Version{}, nopt)
+	node, err := node.Start("t1WebSocketnode@localhost", nopt, gen.Version{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,5 +450,5 @@ func TestT1(t *testing.T) {
 		})
 	}
 
-	node.Stop(false)
+	node.StopForce()
 }
