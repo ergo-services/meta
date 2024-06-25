@@ -10,6 +10,7 @@ import (
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
+	"ergo.services/ergo/meta"
 	"ergo.services/ergo/node"
 
 	"ergo.services/meta/websocket"
@@ -36,18 +37,14 @@ func factory_t1web() gen.ProcessBehavior {
 }
 
 type t1web struct {
-	act.Web
+	act.Actor
 
 	tc *testcase
 }
 
-func (t *t1web) Init(args ...any) (act.WebOptions, error) {
-	var options act.WebOptions
+func (t *t1web) Init(args ...any) error {
 
 	t.tc = args[0].(*testcase)
-
-	options.Port = 12121
-	options.Host = "localhost"
 
 	mux := http.NewServeMux()
 
@@ -57,7 +54,7 @@ func (t *t1web) Init(args ...any) (act.WebOptions, error) {
 	pool_handler := websocket.CreateHandler(wsopts)
 	if _, err := t.SpawnMeta(pool_handler, gen.MetaOptions{}); err != nil {
 		t.Log().Error("unable to spawn meta process (pool handler)")
-		return options, err
+		return err
 	}
 	mux.Handle("/pool", pool_handler)
 
@@ -65,12 +62,25 @@ func (t *t1web) Init(args ...any) (act.WebOptions, error) {
 	handler := websocket.CreateHandler(wsopts2)
 	if _, err := t.SpawnMeta(handler, gen.MetaOptions{}); err != nil {
 		t.Log().Error("unable to spawn meta process (handler)")
-		return options, err
+		return err
 	}
 	mux.Handle("/ws", handler)
 
-	options.Handler = mux
-	return options, nil
+	// create and spawn web server meta process
+	serverOptions := meta.WebServerOptions{
+		Port:    12121,
+		Host:    "localhost",
+		Handler: mux,
+	}
+
+	webserver, err := meta.CreateWebServer(serverOptions)
+	if err != nil {
+		return err
+	}
+	if _, err := t.SpawnMeta(webserver, gen.MetaOptions{}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func factory_t1handler() gen.ProcessBehavior {
@@ -422,7 +432,7 @@ func TestT1(t *testing.T) {
 	nopt := gen.NodeOptions{}
 	nopt.Log.DefaultLogger.Disable = true
 	//nopt.Log.Level = gen.LogLevelTrace
-	node, err := node.Start("t1WebSocketnode@localhost", gen.Version{}, nopt)
+	node, err := node.Start("t1WebSocketnode@localhost", nopt, gen.Version{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,8 +444,8 @@ func TestT1(t *testing.T) {
 	}
 
 	t1cases = []*testcase{
-		&testcase{"TestServer", nil, nil, make(chan error)},
-		&testcase{"TestClient", nil, nil, make(chan error)},
+		{"TestServer", nil, nil, make(chan error)},
+		{"TestClient", nil, nil, make(chan error)},
 	}
 	for _, tc := range t1cases {
 		name := tc.name
@@ -450,5 +460,5 @@ func TestT1(t *testing.T) {
 		})
 	}
 
-	node.Stop(false)
+	node.StopForce()
 }
