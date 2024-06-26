@@ -4,4 +4,4 @@ go 1.20
 
 require github.com/gorilla/websocket v1.5.0
 
-require ergo.services/ergo v1.999.225-0.20240625165509-eaa647096b85
+require ergo.services/ergo v1.999.225-0.20240621104521-5ac08d433155
