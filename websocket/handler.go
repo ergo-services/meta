@@ -14,7 +14,7 @@ func CreateHandler(options HandlerOptions) meta.WebHandler {
 	if options.HandshakeTimeout == 0 {
 		options.HandshakeTimeout = 15 * time.Second
 	}
-	w := &wsh{
+	return &handler{
 		pool: options.ProcessPool,
 		upgrader: ws.Upgrader{
 			HandshakeTimeout:  options.HandshakeTimeout,
@@ -23,7 +23,6 @@ func CreateHandler(options HandlerOptions) meta.WebHandler {
 		},
 		ch: make(chan error),
 	}
-	return w
 }
 
 type HandlerOptions struct {
@@ -33,7 +32,7 @@ type HandlerOptions struct {
 	CheckOrigin       func(r *http.Request) bool
 }
 
-type wsh struct {
+type handler struct {
 	gen.MetaProcess
 
 	pool       []gen.Atom
@@ -44,31 +43,31 @@ type wsh struct {
 }
 
 // Handler gen.MetaBehavior implementation
-func (w *wsh) Init(process gen.MetaProcess) error {
-	w.MetaProcess = process
-	w.i = -1
+func (h *handler) Init(process gen.MetaProcess) error {
+	h.MetaProcess = process
+	h.i = -1
 	return nil
 }
 
-func (w *wsh) Start() error {
-	return <-w.ch
+func (h *handler) Start() error {
+	return <-h.ch
 }
 
-func (w *wsh) HandleMessage(from gen.PID, message any) error {
+func (h *handler) HandleMessage(from gen.PID, message any) error {
 	return nil
 }
 
-func (w *wsh) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
+func (h *handler) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
 	return nil, nil
 }
 
-func (w *wsh) Terminate(reason error) {
-	w.terminated = true
-	w.ch <- reason
-	close(w.ch)
+func (h *handler) Terminate(reason error) {
+	h.terminated = true
+	h.ch <- reason
+	close(h.ch)
 }
 
-func (w *wsh) HandleInspect(from gen.PID, item ...string) map[string]string {
+func (h *handler) HandleInspect(from gen.PID, item ...string) map[string]string {
 	return nil
 }
 
@@ -76,30 +75,30 @@ func (w *wsh) HandleInspect(from gen.PID, item ...string) map[string]string {
 // Handler http.Handler implementation
 //
 
-func (w *wsh) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if w.MetaProcess == nil {
+func (h *handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if h.MetaProcess == nil {
 		http.Error(writer, "Handler is not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	if w.terminated {
+	if h.terminated {
 		http.Error(writer, "Handler terminated", http.StatusServiceUnavailable)
 		return
 	}
 
-	conn, err := w.upgrader.Upgrade(writer, request, nil)
+	conn, err := h.upgrader.Upgrade(writer, request, nil)
 	if err != nil {
-		w.Log().Error("can not upgrade to websocket: %s", err)
+		h.Log().Error("can not upgrade to websocket: %s", err)
 		return
 	}
-	c := &wsc{conn: conn}
-	if l := len(w.pool); l > 0 {
-		i := int(atomic.AddInt32(&w.i, 1))
-		c.process = w.pool[i%l]
+	c := &connection{conn: conn}
+	if l := len(h.pool); l > 0 {
+		i := int(atomic.AddInt32(&h.i, 1))
+		c.process = h.pool[i%l]
 	}
 
-	if _, err := w.Spawn(c, gen.MetaOptions{}); err != nil {
+	if _, err := h.Spawn(c, gen.MetaOptions{}); err != nil {
 		conn.Close()
-		w.Log().Error("unable to spawn meta process: %s", err)
+		h.Log().Error("unable to spawn meta process: %s", err)
 	}
 }

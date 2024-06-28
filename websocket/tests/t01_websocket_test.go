@@ -304,18 +304,18 @@ type t1client struct {
 func (t *t1client) Init(args ...any) error {
 	t.tc = args[0].(*testcase)
 
-	opt := websocket.ClientOptions{
+	opt := websocket.ConnectionOptions{
 		URL: url.URL{Scheme: "ws", Host: "localhost:12121", Path: "/ws"},
 	}
-	client, err := websocket.CreateClient(opt)
+	wsc, err := websocket.CreateConnection(opt)
 	if err != nil {
-		t.Log().Error("unable to create websocket client : %s", err)
+		t.Log().Error("unable to create websocket connection: %s", err)
 		return err
 	}
-	id, err := t.SpawnMeta(client, gen.MetaOptions{})
+	id, err := t.SpawnMeta(wsc, gen.MetaOptions{})
 	if err != nil {
 		t.Log().Error("unable to spawn meta process: %s", err)
-		client.Terminate(err)
+		wsc.Terminate(err)
 		return err
 	}
 
