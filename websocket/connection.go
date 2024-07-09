@@ -132,7 +132,7 @@ func (w *connection) HandleCall(from gen.PID, ref gen.Ref, request any) (any, er
 
 func (c *connection) Terminate(reason error) {
 	c.conn.Close()
-	if reason == nil || reason == gen.TerminateMetaNormal {
+	if reason == nil || reason == gen.TerminateReasonNormal {
 		return
 	}
 	c.Log().Error("terminated abnormaly: %s", reason)
