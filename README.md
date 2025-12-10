@@ -11,3 +11,7 @@ This package implements meta-processes to work with WebSocket connections within
 
 Doc: https://docs.ergo.services/extra-library/meta-processes/websocket
 
+## sse
+This package implements meta-processes to work with Server-Sent Events (SSE) connections within the actor model of the Ergo Framework. SSE provides unidirectional server-to-client communication over HTTP.
+
+Doc: https://docs.ergo.services/extra-library/meta-processes/sse
