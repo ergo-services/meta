@@ -2,10 +2,13 @@ package sse
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -23,9 +26,10 @@ func CreateHandler(options HandlerOptions) meta.WebHandler {
 		options.Heartbeat = defaultHeartbeat
 	}
 	return &handler{
-		pool:      options.ProcessPool,
-		heartbeat: options.Heartbeat,
-		ch:        make(chan error),
+		pool:        options.ProcessPool,
+		heartbeat:   options.Heartbeat,
+		compression: options.Compression,
+		ch:          make(chan error),
 	}
 }
 
@@ -33,16 +37,18 @@ func CreateHandler(options HandlerOptions) meta.WebHandler {
 type HandlerOptions struct {
 	ProcessPool []gen.Atom    // Worker processes for handling connections (round-robin)
 	Heartbeat   time.Duration // Heartbeat interval for keeping connection alive
+	Compression bool          // Enable gzip compression for clients that support it
 }
 
 type handler struct {
 	gen.MetaProcess
 
-	pool       []gen.Atom
-	i          int32
-	heartbeat  time.Duration
-	terminated bool
-	ch         chan error
+	pool        []gen.Atom
+	i           int32
+	heartbeat   time.Duration
+	compression bool
+	terminated  bool
+	ch          chan error
 }
 
 //
@@ -112,11 +118,19 @@ func (h *handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
 
 	c := &serverConnection{
-		writer:    writer,
-		flusher:   flusher,
-		request:   request,
-		heartbeat: h.heartbeat,
-		done:      make(chan struct{}),
+		writer:     writer,
+		rawFlusher: flusher,
+		request:    request,
+		heartbeat:  h.heartbeat,
+		done:       make(chan struct{}),
+	}
+
+	// negotiate gzip compression
+	if h.compression == true && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+		writer.Header().Set("Content-Encoding", "gzip")
+		gz, _ := gzip.NewWriterLevel(writer, gzip.BestSpeed)
+		c.writer = gz
+		c.gzWriter = gz
 	}
 
 	if l := len(h.pool); l > 0 {
@@ -141,13 +155,14 @@ func (h *handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 type serverConnection struct {
 	gen.MetaProcess
 
-	writer    http.ResponseWriter
-	flusher   http.Flusher
-	process   gen.Atom
-	request   *http.Request
-	heartbeat time.Duration
-	done      chan struct{}
-	bytesOut  uint64
+	writer     io.Writer
+	rawFlusher http.Flusher
+	gzWriter   *gzip.Writer // nil when compression disabled
+	process    gen.Atom
+	request    *http.Request
+	heartbeat  time.Duration
+	done       chan struct{}
+	bytesOut   uint64
 }
 
 func (c *serverConnection) Init(process gen.MetaProcess) error {
@@ -167,6 +182,9 @@ func (c *serverConnection) Start() error {
 	}
 
 	defer func() {
+		if c.gzWriter != nil {
+			c.gzWriter.Close()
+		}
 		message := MessageDisconnect{
 			ID: id,
 		}
@@ -213,7 +231,7 @@ func (c *serverConnection) Start() error {
 	if _, err := c.writer.Write([]byte(": connected\n\n")); err != nil {
 		return err
 	}
-	c.flusher.Flush()
+	c.flush()
 
 	// wait for client disconnect using request context
 	// (context is cancelled when the client disconnects or the server handler returns)
@@ -230,13 +248,20 @@ func (c *serverConnection) HandleMessage(from gen.PID, message any) error {
 			c.Log().Error("unable to write SSE data: %s", err)
 			return err
 		}
-		c.flusher.Flush()
+		c.flush()
 		atomic.AddUint64(&c.bytesOut, uint64(len(data)))
 
 	default:
 		c.Log().Error("unsupported message from %s. ignored", from)
 	}
 	return nil
+}
+
+func (c *serverConnection) flush() {
+	if c.gzWriter != nil {
+		c.gzWriter.Flush()
+	}
+	c.rawFlusher.Flush()
 }
 
 func (c *serverConnection) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
