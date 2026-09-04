@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"ergo.services/ergo"
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/meta"
-	"ergo.services/ergo/node"
 
 	"ergo.services/meta/sse"
 )
@@ -18,7 +18,7 @@ func main() {
 	opts := gen.NodeOptions{}
 	opts.Log.Level = gen.LogLevelInfo
 
-	n, err := node.Start("sse_server@localhost", opts, gen.Version{})
+	n, err := ergo.StartNode("sse_server@localhost", opts)
 	if err != nil {
 		panic(err)
 	}

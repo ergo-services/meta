@@ -1,5 +1,5 @@
 module ergo.services/meta/sse
 
-go 1.20
+go 1.21
 
-require ergo.services/ergo v1.999.320
+require ergo.services/ergo v1.999.330

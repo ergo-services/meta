@@ -90,10 +90,10 @@ func (c *connection) Start() error {
 	for {
 		mt, m, err := c.conn.ReadMessage()
 		if err != nil {
-			if ws.IsCloseError(err, ws.CloseNormalClosure) || ws.IsCloseError(err, ws.CloseGoingAway) {
-				return nil
+			if ws.IsCloseError(err, ws.CloseNormalClosure, ws.CloseGoingAway, ws.CloseNoStatusReceived) == false {
+				c.Log().Warning("websocket connection lost: %s", err)
 			}
-			return err
+			return nil
 		}
 		message := Message{
 			ID:   id,
@@ -115,8 +115,8 @@ func (c *connection) HandleMessage(from gen.PID, message any) error {
 			m.Type = MessageTypeText
 		}
 		if err := c.conn.WriteMessage(int(m.Type), m.Body); err != nil {
-			c.Log().Error("unable to write data into the web socket: %s", err)
-			return err
+			c.Log().Warning("unable to write data into the web socket: %s", err)
+			return gen.TerminateReasonNormal
 		}
 		atomic.AddUint64(&c.bytesOut, uint64(len(m.Body)))
 

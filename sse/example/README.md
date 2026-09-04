@@ -11,7 +11,7 @@ Starts HTTP server on `localhost:8080` with:
 The server sends periodic events every 2 seconds with counter, server time, and connected clients count.
 
 ```bash
-go run ./server.go
+go run ./server
 ```
 
 Open http://localhost:8080 in browser to see live updates.
@@ -21,7 +21,7 @@ Open http://localhost:8080 in browser to see live updates.
 Connects to SSE endpoint and prints received events to console.
 
 ```bash
-go run ./client.go
+go run ./client
 ```
 
 ## Message Types
